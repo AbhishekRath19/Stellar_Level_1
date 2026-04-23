@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   isConnected, 
   requestAccess,
-  signTransaction
+  signTransaction,
+  getNetworkDetails
 } from "@stellar/freighter-api";
 import { 
   Horizon,
@@ -11,7 +12,7 @@ import {
   Operation, 
   Asset, 
   BASE_FEE,
-  StrKey 
+  StrKey
 } from "@stellar/stellar-sdk";
 import { 
   Wallet, 
@@ -22,7 +23,8 @@ import {
   RefreshCw, 
   Coins, 
   Send, 
-  CheckCircle2 
+  CheckCircle2,
+  Activity
 } from 'lucide-react';
 
 const server = new Horizon.Server("https://horizon-testnet.stellar.org");
@@ -43,6 +45,7 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [txResult, setTxResult] = useState<string | null>(null);
   const [isFreighterInstalled, setIsFreighterInstalled] = useState<boolean>(true);
+  const [network, setNetwork] = useState<string | null>(null);
 
   useEffect(() => {
     checkFreighter();
@@ -51,6 +54,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (publicKey) {
       fetchBalance(publicKey);
+      checkNetwork();
     }
   }, [publicKey]);
 
@@ -63,6 +67,15 @@ const App: React.FC = () => {
     }
   };
 
+  const checkNetwork = async () => {
+    try {
+      const details = await getNetworkDetails();
+      setNetwork(details.network);
+    } catch (err) {
+      console.error("Error checking network:", err);
+    }
+  };
+
   const fetchBalance = async (address: string) => {
     if (!address || !StrKey.isValidEd25519PublicKey(address)) return;
     try {
@@ -71,7 +84,7 @@ const App: React.FC = () => {
       setBalance(xlmBalance ? xlmBalance.balance : '0');
     } catch (err) {
       console.error("Error fetching balance:", err);
-      setBalance('Account not found on Testnet');
+      setBalance('Account not found');
     }
   };
 
@@ -89,11 +102,8 @@ const App: React.FC = () => {
 
       const response = await requestAccess();
       const address = typeof response === 'string' ? response : response?.address;
-      const apiError = typeof response === 'object' ? (response as any)?.error : null;
       
-      if (apiError) {
-        setError(typeof apiError === 'string' ? apiError : JSON.stringify(apiError));
-      } else if (address) {
+      if (address) {
         setPublicKey(address);
       } else {
         setError("User denied connection or no account found.");
@@ -114,6 +124,13 @@ const App: React.FC = () => {
 
     if (!StrKey.isValidEd25519PublicKey(destinationAddress)) {
       setError("Invalid destination address format.");
+      return;
+    }
+
+    // Verify Network
+    const networkDetails = await getNetworkDetails();
+    if (networkDetails.network !== "TESTNET") {
+      setError("Please switch your Freighter wallet to TESTNET.");
       return;
     }
 
@@ -158,14 +175,19 @@ const App: React.FC = () => {
       }
 
       // 4. Submit to Horizon
+      console.log("Submitting transaction...");
       const result = await server.submitTransaction(signedTxXdr);
-      setTxResult(result.hash);
+      console.log("Transaction result:", result);
       
-      // Refresh balance
-      await fetchBalance(publicKey);
+      if (result.successful) {
+        setTxResult(result.hash);
+        // Wait a bit for the ledger to close before refreshing balance
+        setTimeout(() => fetchBalance(publicKey), 2000);
+      } else {
+        throw new Error("Transaction failed on the network.");
+      }
     } catch (err: any) {
       console.error("Transaction failed:", err);
-      // Handle Horizon error responses
       const horizonError = err.response?.data?.extras?.result_codes?.operations?.[0] || err.message || "Transaction failed.";
       setError(typeof horizonError === 'string' ? horizonError : JSON.stringify(horizonError));
     } finally {
@@ -246,9 +268,17 @@ const App: React.FC = () => {
             <div className="space-y-6">
               {/* Status Header */}
               <div className="flex justify-between items-center">
-                <div className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-2 border border-emerald-500/20 tracking-wider">
-                  <ShieldCheck className="w-3 h-3" />
-                  TESTNET ACTIVE
+                <div className="flex items-center gap-3">
+                  <div className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-2 border border-emerald-500/20 tracking-wider uppercase">
+                    <ShieldCheck className="w-3 h-3" />
+                    App: Testnet
+                  </div>
+                  {network && (
+                    <div className={`px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-2 border tracking-wider uppercase ${network === 'TESTNET' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
+                      <Activity className="w-3 h-3" />
+                      Wallet: {network}
+                    </div>
+                  )}
                 </div>
                 <button 
                   onClick={handleDisconnect}
