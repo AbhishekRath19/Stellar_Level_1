@@ -2,6 +2,14 @@
 
 A modern, high-performance React application for connecting to the Stellar Network via the Freighter wallet. Built with React 18, TypeScript, and Tailwind CSS v4.
 
+### 📱 Screenshots
+
+![Dashboard](./screenshots/dashboard.png)
+*Modern Dashboard with real-time balance and connection status*
+
+![Transaction Success](./screenshots/transaction_success.png)
+*Seamless transaction submission with direct explorer links*
+
 ## 🚀 Features
 
 - **Freighter Integration**: Securely connect and disconnect using the latest `@stellar/freighter-api` (v6+).
