@@ -5,14 +5,16 @@ A modern, high-performance React application for connecting to the Stellar Netwo
 ## 🚀 Features
 
 - **Freighter Integration**: Securely connect and disconnect using the latest `@stellar/freighter-api` (v6+).
+- **Balance Display**: Real-time XLM balance fetching from the Stellar Testnet.
+- **Testnet Transactions**: Build, sign, and submit test transactions (self-payments) to the network.
+- **Transaction Explorer**: View transaction results with direct links to the Stellar Expert explorer.
 - **Modern UI**: Professional dark-mode interface with glassmorphism, custom gradients, and smooth animations.
 - **Tailwind v4**: Leverages the latest CSS-first configuration and high-performance JIT engine.
-- **Stellar SDK**: Configured with Vite node polyfills for seamless blockchain interaction.
 
 ## 🛠️ Tech Stack
 
-- **Framework**: [React 18](https://reactjs.org/)
-- **Build Tool**: [Vite](https://vitejs.dev/)
+- **Framework**: [React 19](https://reactjs.org/)
+- **Build Tool**: [Vite 6](https://vitejs.dev/)
 - **Language**: [TypeScript](https://www.typescriptlang.org/)
 - **Styling**: [Tailwind CSS v4](https://tailwindcss.com/)
 - **Icons**: [Lucide React](https://lucide.dev/)
@@ -24,6 +26,7 @@ A modern, high-performance React application for connecting to the Stellar Netwo
 Before you begin, ensure you have the following installed:
 - [Node.js](https://nodejs.org/) (v18 or higher)
 - [Freighter Wallet Extension](https://www.freighter.app/) installed in your browser.
+- A Stellar Testnet account (You can create and fund one via [Stellar Laboratory](https://laboratory.stellar.org/#account-creator?network=testnet)).
 
 ## ⚙️ Installation & Setup
 
@@ -43,14 +46,12 @@ Before you begin, ensure you have the following installed:
    npm run dev
    ```
 
-4. **Build for production**:
-   ```bash
-   npm run build
-   ```
-
 ## 🔐 Wallet Connection
 
-Click the **Connect Wallet** button on the home screen to trigger the Freighter authorization popup. Once connected, your truncated public key will be displayed on the dashboard.
+1. Click **Connect Wallet** to authorize the app.
+2. Once connected, your **Address** and **Balance** will be displayed.
+3. Click **Send Test Transaction** to perform a 1 XLM self-payment. This will trigger a Freighter signature request.
+4. After submission, a success message with the transaction hash and a link to the explorer will appear.
 
 ## 📄 License
 
