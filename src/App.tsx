@@ -135,6 +135,7 @@ const App: React.FC = () => {
   };
 
   const handleSendTransaction = async () => {
+    console.log("Starting transaction flow...");
     if (!publicKey || !destinationAddress || !amount) {
       setError("Please provide a destination address and amount.");
       return;
@@ -145,41 +146,55 @@ const App: React.FC = () => {
       return;
     }
 
-    // Verify Network
-    const networkDetails = await getNetworkDetails();
-    if (networkDetails.network !== "TESTNET") {
-      setError("Please switch your Freighter wallet to TESTNET.");
-      return;
-    }
-
     setTxLoading(true);
     setError(null);
     setTxResult(null);
 
     try {
+      // Verify Network
+      console.log("Verifying network...");
+      const networkDetails = await getNetworkDetails();
+      if (networkDetails && networkDetails.network !== "TESTNET") {
+        setError("Please switch your Freighter wallet to TESTNET.");
+        setTxLoading(false);
+        return;
+      }
+
       // 1. Load account
+      console.log("Loading account:", publicKey);
       const account = await server.loadAccount(publicKey);
+      if (!account) throw new Error("Could not load account details.");
 
       // 2. Build transaction
-      const transaction = new TransactionBuilder(account, {
-        fee: BASE_FEE,
-        networkPassphrase: Networks.TESTNET,
-      })
-        .addOperation(
-          Operation.payment({
-            destination: destinationAddress,
-            asset: Asset.native(),
-            amount: amount,
-          })
-        )
-        .setTimeout(30)
-        .build();
+      console.log("Building transaction...");
+      let transaction;
+      try {
+        transaction = new TransactionBuilder(account, {
+          fee: BASE_FEE,
+          networkPassphrase: Networks.TESTNET,
+        })
+          .addOperation(
+            Operation.payment({
+              destination: destinationAddress,
+              asset: Asset.native(),
+              amount: amount.toString(),
+            })
+          )
+          .setTimeout(30)
+          .build();
+      } catch (buildError: any) {
+        console.error("Build error details:", buildError);
+        throw new Error(`Failed to build transaction: ${buildError.message}`);
+      }
 
       // 3. Sign with Freighter
+      console.log("Requesting signature from Freighter...");
       const xdr = transaction.toXDR();
       const signResponse = await signTransaction(xdr, {
         networkPassphrase: Networks.TESTNET,
       });
+      
+      console.log("Freighter sign response:", signResponse);
 
       const signedTxXdr = typeof signResponse === 'string' ? signResponse : (signResponse as any)?.signedTxXdr;
       const signError = typeof signResponse === 'object' && signResponse !== null ? (signResponse as any)?.error : null;
@@ -189,23 +204,49 @@ const App: React.FC = () => {
       }
 
       if (!signedTxXdr) {
-        throw new Error("Failed to sign transaction.");
+        throw new Error("User cancelled or failed to sign transaction.");
       }
 
       // 4. Submit to Horizon
-      const result = await server.submitTransaction(signedTxXdr);
+      console.log("Submitting to Horizon...");
+      // Ensure we have a proper Transaction object if string submission fails
+      let txToSubmit;
+      try {
+        txToSubmit = TransactionBuilder.fromXDR(signedTxXdr, Networks.TESTNET);
+      } catch (e) {
+        console.warn("Could not parse signed XDR, submitting as raw string...");
+        txToSubmit = signedTxXdr;
+      }
+
+      const result = await server.submitTransaction(txToSubmit);
+      console.log("Horizon submit result:", result);
       
-      if (result.successful) {
+      if (result && result.successful) {
         setTxResult(result.hash);
+        console.log("Transaction confirmed:", result.hash);
         // Refresh all data
-        setTimeout(() => fetchData(), 2500);
+        setTimeout(() => {
+          console.log("Triggering post-tx refresh...");
+          fetchData();
+        }, 3000);
       } else {
         throw new Error("Transaction failed on the network.");
       }
     } catch (err: any) {
-      console.error("Transaction failed:", err);
-      const horizonError = err.response?.data?.extras?.result_codes?.operations?.[0] || err.message || "Transaction failed.";
-      setError(typeof horizonError === 'string' ? horizonError : JSON.stringify(horizonError));
+      console.error("Caught error in handleSendTransaction:", err);
+      
+      let errorMessage = "Transaction failed.";
+      
+      if (err.response && err.response.data && err.response.data.extras) {
+        const resultCodes = err.response.data.extras.result_codes;
+        if (resultCodes) {
+          errorMessage = resultCodes.operations?.[0] || resultCodes.transaction || errorMessage;
+        }
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
     } finally {
       setTxLoading(false);
     }
