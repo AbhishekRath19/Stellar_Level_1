@@ -46,6 +46,7 @@ const App: React.FC = () => {
   const [txResult, setTxResult] = useState<string | null>(null);
   const [isFreighterInstalled, setIsFreighterInstalled] = useState<boolean>(true);
   const [network, setNetwork] = useState<string | null>(null);
+  const [txHistory, setTxHistory] = useState<any[]>([]);
 
   useEffect(() => {
     checkFreighter();
@@ -53,10 +54,18 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (publicKey) {
-      fetchBalance(publicKey);
-      checkNetwork();
+      fetchData();
     }
   }, [publicKey]);
+
+  const fetchData = async () => {
+    if (!publicKey) return;
+    await Promise.all([
+      fetchBalance(publicKey),
+      checkNetwork(),
+      fetchHistory(publicKey)
+    ]);
+  };
 
   const checkFreighter = async () => {
     try {
@@ -85,6 +94,15 @@ const App: React.FC = () => {
     } catch (err) {
       console.error("Error fetching balance:", err);
       setBalance('Account not found');
+    }
+  };
+
+  const fetchHistory = async (address: string) => {
+    try {
+      const history = await server.payments().forAccount(address).limit(5).order("desc").call();
+      setTxHistory(history.records);
+    } catch (err) {
+      console.error("Error fetching history:", err);
     }
   };
 
@@ -175,14 +193,12 @@ const App: React.FC = () => {
       }
 
       // 4. Submit to Horizon
-      console.log("Submitting transaction...");
       const result = await server.submitTransaction(signedTxXdr);
-      console.log("Transaction result:", result);
       
       if (result.successful) {
         setTxResult(result.hash);
-        // Wait a bit for the ledger to close before refreshing balance
-        setTimeout(() => fetchBalance(publicKey), 2000);
+        // Refresh all data
+        setTimeout(() => fetchData(), 2500);
       } else {
         throw new Error("Transaction failed on the network.");
       }
@@ -297,7 +313,7 @@ const App: React.FC = () => {
                     {truncateAddress(publicKey)}
                   </code>
                 </div>
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-5 relative group">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Balance</span>
                   <div className="flex items-baseline gap-1.5">
                     <span className="text-2xl font-bold text-white tracking-tighter">
@@ -305,6 +321,13 @@ const App: React.FC = () => {
                     </span>
                     <span className="text-sm font-bold text-slate-400">XLM</span>
                   </div>
+                  <button 
+                    onClick={fetchData}
+                    className="absolute top-4 right-4 p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100"
+                    title="Refresh Balance"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
+                  </button>
                 </div>
               </div>
 
@@ -313,10 +336,10 @@ const App: React.FC = () => {
                 <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-2xl space-y-2">
                   <div className="flex items-center gap-2 text-emerald-400">
                     <CheckCircle2 className="w-5 h-5" />
-                    <span className="text-sm font-bold">Transaction Successful!</span>
+                    <span className="text-sm font-bold">Transaction Confirmed</span>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Hash</span>
+                    <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Transaction Hash</span>
                     <div className="flex items-center justify-between gap-2">
                       <code className="text-[10px] font-mono text-emerald-200/60 truncate bg-black/20 p-2 rounded-lg flex-1">
                         {txResult}
@@ -340,6 +363,49 @@ const App: React.FC = () => {
                 <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
                   <p className="text-xs text-red-200/80 break-all">{error}</p>
+                </div>
+              )}
+
+              {/* Recent Transactions */}
+              {txHistory.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between px-1">
+                    <div className="flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-stellar-blue" />
+                      <h3 className="text-sm font-bold uppercase tracking-widest text-slate-500">Recent Activity</h3>
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-600">LATEST 5</span>
+                  </div>
+                  <div className="space-y-2">
+                    {txHistory.map((tx: any, i: number) => {
+                      const isSent = tx.from === publicKey;
+                      return (
+                        <div key={i} className="flex items-center justify-between bg-white/5 border border-white/5 rounded-xl p-3 hover:bg-white/10 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-lg ${isSent ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
+                              <Send className={`w-3.5 h-3.5 ${isSent ? 'rotate-0' : 'rotate-180'}`} />
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-bold uppercase tracking-tighter text-slate-400">
+                                {isSent ? 'Sent XLM' : 'Received XLM'}
+                              </p>
+                              <p className="text-[10px] font-mono text-slate-600">
+                                {isSent ? `To: ${truncateAddress(tx.to)}` : `From: ${truncateAddress(tx.from)}`}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className={`text-sm font-bold ${isSent ? 'text-red-400' : 'text-emerald-400'}`}>
+                              {isSent ? '-' : '+'}{parseFloat(tx.amount).toFixed(1)} XLM
+                            </p>
+                            <p className="text-[10px] text-slate-600">
+                              {new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
