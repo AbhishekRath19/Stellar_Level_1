@@ -4,7 +4,7 @@ import {
   signTransaction
 } from "@stellar/freighter-api";
 import { 
-  Server, 
+  Horizon,
   TransactionBuilder, 
   Networks, 
   Operation, 
@@ -23,7 +23,7 @@ import {
   CheckCircle2 
 } from 'lucide-react';
 
-const server = new Server("https://horizon-testnet.stellar.org");
+const server = new Horizon.Server("https://horizon-testnet.stellar.org");
 
 // Truncate address utility
 const truncateAddress = (address: string) => {
