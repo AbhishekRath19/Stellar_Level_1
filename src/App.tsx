@@ -35,6 +35,8 @@ const truncateAddress = (address: string) => {
 const App: React.FC = () => {
   const [publicKey, setPublicKey] = useState<string | null>(null);
   const [balance, setBalance] = useState<string | null>(null);
+  const [destinationAddress, setDestinationAddress] = useState<string>('');
+  const [amount, setAmount] = useState<string>('1.0');
   const [loading, setLoading] = useState<boolean>(false);
   const [txLoading, setTxLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,14 +54,18 @@ const App: React.FC = () => {
   }, [publicKey]);
 
   const checkFreighter = async () => {
-    const result = await isConnected();
-    setIsFreighterInstalled(!!result?.isConnected);
+    try {
+      const result = await isConnected();
+      setIsFreighterInstalled(!!result?.isConnected);
+    } catch (err) {
+      setIsFreighterInstalled(false);
+    }
   };
 
   const fetchBalance = async (address: string) => {
     try {
       const account = await server.loadAccount(address);
-      const xlmBalance = account.balances.find((b: any) => b.asset_type === 'native');
+      const xlmBalance = account.balances?.find((b: any) => b.asset_type === 'native');
       setBalance(xlmBalance ? xlmBalance.balance : '0');
     } catch (err) {
       console.error("Error fetching balance:", err);
@@ -79,10 +85,12 @@ const App: React.FC = () => {
         return;
       }
 
-      const { address, error: apiError } = await requestAccess();
+      const response = await requestAccess();
+      const address = typeof response === 'string' ? response : response?.address;
+      const apiError = typeof response === 'object' ? response?.error : null;
       
       if (apiError) {
-        setError(apiError);
+        setError(typeof apiError === 'string' ? apiError : JSON.stringify(apiError));
       } else if (address) {
         setPublicKey(address);
       } else {
@@ -96,8 +104,11 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSendTestTx = async () => {
-    if (!publicKey) return;
+  const handleSendTransaction = async () => {
+    if (!publicKey || !destinationAddress || !amount) {
+      setError("Please provide a destination address and amount.");
+      return;
+    }
     setTxLoading(true);
     setError(null);
     setTxResult(null);
@@ -106,16 +117,16 @@ const App: React.FC = () => {
       // 1. Load account
       const account = await server.loadAccount(publicKey);
 
-      // 2. Build transaction (Sending 1 XLM to self as a test)
+      // 2. Build transaction
       const transaction = new TransactionBuilder(account, {
         fee: BASE_FEE,
         networkPassphrase: Networks.TESTNET,
       })
         .addOperation(
           Operation.payment({
-            destination: publicKey,
+            destination: destinationAddress,
             asset: Asset.native(),
-            amount: "1.0",
+            amount: amount,
           })
         )
         .setTimeout(30)
@@ -123,12 +134,19 @@ const App: React.FC = () => {
 
       // 3. Sign with Freighter
       const xdr = transaction.toXDR();
-      const { signedTxXdr, error: signError } = await signTransaction(xdr, {
+      const signResponse = await signTransaction(xdr, {
         networkPassphrase: Networks.TESTNET,
       });
 
+      const signedTxXdr = typeof signResponse === 'string' ? signResponse : signResponse?.signedTxXdr;
+      const signError = typeof signResponse === 'object' ? signResponse?.error : null;
+
       if (signError) {
-        throw new Error(signError);
+        throw new Error(typeof signError === 'string' ? signError : JSON.stringify(signError));
+      }
+
+      if (!signedTxXdr) {
+        throw new Error("Failed to sign transaction.");
       }
 
       // 4. Submit to Horizon
@@ -151,6 +169,7 @@ const App: React.FC = () => {
     setBalance(null);
     setError(null);
     setTxResult(null);
+    setDestinationAddress('');
   };
 
   return (
@@ -195,7 +214,7 @@ const App: React.FC = () => {
               {error && (
                 <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-                  <p className="text-xs text-red-200/80">{error}</p>
+                  <p className="text-xs text-red-200/80 truncate">{error}</p>
                 </div>
               )}
 
@@ -235,7 +254,7 @@ const App: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Address</span>
-                  <code className="text-lg font-mono font-bold text-stellar-blue tracking-tighter">
+                  <code className="text-lg font-mono font-bold text-stellar-blue tracking-tighter" title={publicKey}>
                     {truncateAddress(publicKey)}
                   </code>
                 </div>
@@ -243,7 +262,7 @@ const App: React.FC = () => {
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Balance</span>
                   <div className="flex items-baseline gap-1.5">
                     <span className="text-2xl font-bold text-white tracking-tighter">
-                      {balance !== null ? parseFloat(balance).toFixed(2) : "..."}
+                      {balance !== null ? (isNaN(parseFloat(balance)) ? "0.00" : parseFloat(balance).toFixed(2)) : "..."}
                     </span>
                     <span className="text-sm font-bold text-slate-400">XLM</span>
                   </div>
@@ -281,20 +300,44 @@ const App: React.FC = () => {
               {error && (
                 <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-                  <p className="text-xs text-red-200/80">{error}</p>
+                  <p className="text-xs text-red-200/80 break-all">{error}</p>
                 </div>
               )}
 
-              {/* Actions Section */}
+              {/* Transaction Form */}
               <div className="space-y-4 pt-2">
                 <div className="flex items-center gap-2 px-1">
                   <Send className="w-4 h-4 text-stellar-blue" />
-                  <h3 className="text-sm font-bold uppercase tracking-widest text-slate-500">Quick Actions</h3>
+                  <h3 className="text-sm font-bold uppercase tracking-widest text-slate-500">Send Payment</h3>
+                </div>
+                
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Destination Address</label>
+                    <input 
+                      type="text" 
+                      value={destinationAddress}
+                      onChange={(e) => setDestinationAddress(e.target.value)}
+                      placeholder="G..."
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-stellar-blue/50 transition-colors placeholder:text-slate-600"
+                    />
+                  </div>
+                  
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Amount (XLM)</label>
+                    <input 
+                      type="number" 
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      placeholder="1.0"
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-stellar-blue/50 transition-colors placeholder:text-slate-600"
+                    />
+                  </div>
                 </div>
                 
                 <button
-                  onClick={handleSendTestTx}
-                  disabled={txLoading || balance === 'Account not found on Testnet'}
+                  onClick={handleSendTransaction}
+                  disabled={txLoading || !destinationAddress || !amount || isNaN(parseFloat(balance || '0'))}
                   className="w-full btn-primary py-4 flex items-center justify-center gap-3 relative overflow-hidden"
                 >
                   {txLoading ? (
@@ -302,15 +345,12 @@ const App: React.FC = () => {
                   ) : (
                     <>
                       <Coins className="w-5 h-5" />
-                      <div className="text-left leading-tight">
-                        <div className="font-bold">Send Test Transaction</div>
-                        <div className="text-[10px] font-medium opacity-70 italic">Sends 1 XLM to yourself on Testnet</div>
-                      </div>
+                      <span className="font-bold">Send Transaction</span>
                     </>
                   )}
                 </button>
                 
-                {balance === 'Account not found on Testnet' && (
+                {isNaN(parseFloat(balance || '0')) && (
                   <p className="text-center text-[10px] text-slate-500 italic">
                     Tip: Visit <a href="https://laboratory.stellar.org/#account-creator?network=testnet" target="_blank" rel="noreferrer" className="text-stellar-blue hover:underline">Stellar Lab</a> to fund this account on Testnet.
                   </p>
