@@ -10,7 +10,8 @@ import {
   Networks, 
   Operation, 
   Asset, 
-  BASE_FEE 
+  BASE_FEE,
+  StrKey 
 } from "@stellar/stellar-sdk";
 import { 
   Wallet, 
@@ -28,7 +29,7 @@ const server = new Horizon.Server("https://horizon-testnet.stellar.org");
 
 // Truncate address utility
 const truncateAddress = (address: string) => {
-  if (!address) return '';
+  if (!address || typeof address !== 'string') return '';
   return `${address.slice(0, 4)}...${address.slice(-4)}`;
 };
 
@@ -63,6 +64,7 @@ const App: React.FC = () => {
   };
 
   const fetchBalance = async (address: string) => {
+    if (!address || !StrKey.isValidEd25519PublicKey(address)) return;
     try {
       const account = await server.loadAccount(address);
       const xlmBalance = account.balances?.find((b: any) => b.asset_type === 'native');
@@ -87,7 +89,7 @@ const App: React.FC = () => {
 
       const response = await requestAccess();
       const address = typeof response === 'string' ? response : response?.address;
-      const apiError = typeof response === 'object' ? response?.error : null;
+      const apiError = typeof response === 'object' ? (response as any)?.error : null;
       
       if (apiError) {
         setError(typeof apiError === 'string' ? apiError : JSON.stringify(apiError));
@@ -109,6 +111,12 @@ const App: React.FC = () => {
       setError("Please provide a destination address and amount.");
       return;
     }
+
+    if (!StrKey.isValidEd25519PublicKey(destinationAddress)) {
+      setError("Invalid destination address format.");
+      return;
+    }
+
     setTxLoading(true);
     setError(null);
     setTxResult(null);
@@ -138,8 +146,8 @@ const App: React.FC = () => {
         networkPassphrase: Networks.TESTNET,
       });
 
-      const signedTxXdr = typeof signResponse === 'string' ? signResponse : signResponse?.signedTxXdr;
-      const signError = typeof signResponse === 'object' ? signResponse?.error : null;
+      const signedTxXdr = typeof signResponse === 'string' ? signResponse : (signResponse as any)?.signedTxXdr;
+      const signError = typeof signResponse === 'object' && signResponse !== null ? (signResponse as any)?.error : null;
 
       if (signError) {
         throw new Error(typeof signError === 'string' ? signError : JSON.stringify(signError));
@@ -151,14 +159,15 @@ const App: React.FC = () => {
 
       // 4. Submit to Horizon
       const result = await server.submitTransaction(signedTxXdr);
-      console.log("Transaction success:", result);
       setTxResult(result.hash);
       
       // Refresh balance
       await fetchBalance(publicKey);
     } catch (err: any) {
       console.error("Transaction failed:", err);
-      setError(err.message || "Transaction failed.");
+      // Handle Horizon error responses
+      const horizonError = err.response?.data?.extras?.result_codes?.operations?.[0] || err.message || "Transaction failed.";
+      setError(typeof horizonError === 'string' ? horizonError : JSON.stringify(horizonError));
     } finally {
       setTxLoading(false);
     }
