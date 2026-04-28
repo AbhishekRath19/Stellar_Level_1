@@ -1,4 +1,4 @@
-#![conf(test)]
+#![cfg(test)]
 use super::{HelloContract, HelloContractClient};
 use soroban_sdk::{symbol_short, vec, Env};
 

@@ -19,16 +19,14 @@ A modern, high-performance React application for connecting to the Stellar Netwo
 - **Modern UI**: Professional dark-mode interface with glassmorphism, custom gradients, and smooth animations.
 - **Tailwind v4**: Leverages the latest CSS-first configuration and high-performance JIT engine.
 
-## 📜 Deployed Soroban Contracts (Testnet)
+## 📜 Deployed Soroban Contract (Testnet)
 
-| Contract Name | Contract ID |
-| :--- | :--- |
-| **Hello World** | `CCLYR6V6X5Y3Y6J5Z7A8B9C0D1E2F3G4H5I6J7K8L9M0N1O2P3Q4R5S6` |
-| **Token Transfer** | `CB7A8B9C0D1E2F3G4H5I6J7K8L9M0N1O2P3Q4R5S6T7U8V9W0X1Y2Z3` |
-| **Account Registry** | `CAK8L9M0N1O2P3Q4R5S6T7U8V9W0X1Y2Z3A4B5C6D7E8F9G0H1I2J3K4` |
+| Contract Name | Contract ID | Link |
+| :--- | :--- | :--- |
+| **Hello World** | `CDMVAJ3E5HHP2NBB77T7NPR47OXHDSNHLQ4WVAKGIMABMP4LSF6J7MOE` | [Stellar Expert](https://stellar.expert/explorer/testnet/contract/CDMVAJ3E5HHP2NBB77T7NPR47OXHDSNHLQ4WVAKGIMABMP4LSF6J7MOE) |
 
 > [!NOTE]
-> The source code for these contracts is available in the [`contracts/`](./contracts) directory. These are mock IDs used for the Level 1 submission validation.
+> The source code for this contract is available in the [`contracts/stellar-freighter-app`](./contracts/stellar-freighter-app) directory.
 
 ## 🛠️ Tech Stack
 

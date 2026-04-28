@@ -11,4 +11,5 @@ impl HelloContract {
     }
 }
 
+#[cfg(test)]
 mod test;
