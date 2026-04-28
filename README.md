@@ -49,8 +49,8 @@ Before you begin, ensure you have the following installed:
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/AbhishekRath19/stellstl1.git
-   cd stellstl1
+   git clone https://github.com/AbhishekRath19/Stellar_Level_1.git
+   cd Stellar_Level_1
    ```
 
 2. **Install dependencies**:
